@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LifePro MoM Metrics Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #242836;
+  --border: #2e3347;
+  --text: #e4e7f1;
+  --text-muted: #8b90a5;
+  --primary: #6c63ff;
+  --primary-light: #8b85ff;
+  --danger: #ff4d6a;
+  --danger-bg: rgba(255,77,106,0.12);
+  --warning: #ffb347;
+  --warning-bg: rgba(255,179,71,0.12);
+  --success: #4ecdc4;
+  --success-bg: rgba(78,205,196,0.12);
+  --info: #45b7d1;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Segoe UI',system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+.header { background:var(--surface); border-bottom:1px solid var(--border); padding:16px 32px; display:flex; align-items:center; gap:16px; }
+.header h1 { font-size:20px; font-weight:600; }
+.header .subtitle { color:var(--text-muted); font-size:13px; }
+.upload-zone { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:70vh; gap:20px; }
+.upload-box { border:2px dashed var(--border); border-radius:16px; padding:60px 80px; text-align:center; cursor:pointer; transition:all .2s; background:var(--surface); }
+.upload-box:hover { border-color:var(--primary); background:var(--surface2); }
+.upload-box h2 { font-size:22px; margin-bottom:8px; }
+.upload-box p { color:var(--text-muted); font-size:14px; }
+.upload-box input { display:none; }
+.btn { background:var(--primary); color:#fff; border:none; padding:10px 24px; border-radius:8px; font-size:14px; cursor:pointer; font-weight:500; transition:background .2s; }
+.btn:hover { background:var(--primary-light); }
+.dashboard { display:none; }
+.tabs-bar { background:var(--surface); border-bottom:1px solid var(--border); padding:0 32px; display:flex; gap:4px; overflow-x:auto; }
+.tab-btn { padding:12px 20px; border:none; background:transparent; color:var(--text-muted); cursor:pointer; font-size:13px; font-weight:500; border-bottom:2px solid transparent; transition:all .2s; white-space:nowrap; }
+.tab-btn:hover { color:var(--text); }
+.tab-btn.active { color:var(--primary-light); border-bottom-color:var(--primary); }
+.content { padding:24px 32px; }
+.kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:24px; }
+.kpi-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; }
+.kpi-card .label { font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; }
+.kpi-card .value { font-size:28px; font-weight:700; }
+.kpi-card .sub { font-size:12px; color:var(--text-muted); margin-top:4px; }
+.kpi-card.danger .value { color:var(--danger); }
+.kpi-card.success .value { color:var(--success); }
+.kpi-card.warning .value { color:var(--warning); }
+.kpi-card.info .value { color:var(--info); }
+.filters-bar { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }
+.filters-bar input, .filters-bar select { background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:8px 14px; border-radius:8px; font-size:13px; outline:none; }
+.filters-bar input:focus, .filters-bar select:focus { border-color:var(--primary); }
+.filters-bar input { min-width:260px; }
+.charts-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px; }
+.chart-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; }
+.chart-card h3 { font-size:14px; margin-bottom:12px; color:var(--text-muted); }
+.table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+.table-wrap table { width:100%; border-collapse:collapse; font-size:13px; }
+.table-wrap th { background:var(--surface2); padding:10px 14px; text-align:left; font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.3px; color:var(--text-muted); cursor:pointer; user-select:none; white-space:nowrap; position:sticky; top:0; z-index:1; }
+.table-wrap th:hover { color:var(--text); }
+.table-wrap th .sort-icon { margin-left:4px; font-size:10px; }
+.table-wrap td { padding:10px 14px; border-top:1px solid var(--border); white-space:nowrap; }
+.table-wrap tr:hover td { background:var(--surface2); }
+.table-scroll { max-height:600px; overflow:auto; }
+.alert-badge { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; display:inline-block; }
+.alert-50drop { background:var(--danger-bg); color:var(--danger); }
+.alert-25drop { background:var(--warning-bg); color:var(--warning); }
+.alert-10drop { background:rgba(255,179,71,0.08); color:#d4a04a; }
+.alert-new { background:rgba(78,205,196,0.1); color:var(--success); }
+.alert-30inc { background:var(--success-bg); color:var(--success); }
+.alert-none { color:var(--text-muted); font-size:11px; }
+.mom-neg { color:var(--danger); }
+.mom-pos { color:var(--success); }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+.summary-tab .overview-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; margin-bottom:24px; }
+.summary-tab .metric-summary { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; }
+.summary-tab .metric-summary h3 { font-size:15px; margin-bottom:12px; }
+.pagination { display:flex; gap:8px; align-items:center; justify-content:center; padding:16px; }
+.pagination button { background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:6px 14px; border-radius:6px; cursor:pointer; font-size:13px; }
+.pagination button:hover { border-color:var(--primary); }
+.pagination button.active { background:var(--primary); border-color:var(--primary); }
+.pagination span { color:var(--text-muted); font-size:13px; }
+@media(max-width:768px) {
+  .content { padding:16px; }
+  .charts-row { grid-template-columns:1fr; }
+  .kpi-row { grid-template-columns:repeat(2,1fr); }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>MoM Metrics Dashboard</h1>
+    <div class="subtitle">LifePro / JoyBerri / PetCove — Month-over-Month Performance</div>
+  </div>
+</div>
+
+<div class="upload-zone" id="uploadZone">
+  <div class="upload-box" id="uploadBox">
+    <h2>Upload MoM Report</h2>
+    <p>Drop your <strong>MoM Metrics Report (.xlsx)</strong> file here or click to browse</p>
+    <p style="margin-top:12px;font-size:12px;">Expected tabs: MoM Total CVR, MoM Total Organic CVR, MoM CTR, MoM Page Views, MoM Impressions</p>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+  </div>
+  <button class="btn" onclick="document.getElementById('fileInput').click()">Choose File</button>
+</div>
+
+<div class="dashboard" id="dashboard">
+  <div class="tabs-bar" id="tabsBar">
+    <button class="tab-btn active" data-tab="overview">Overview</button>
+    <button class="tab-btn" data-tab="total-cvr">Total CVR</button>
+    <button class="tab-btn" data-tab="organic-cvr">Organic CVR</button>
+    <button class="tab-btn" data-tab="ctr">CTR</button>
+    <button class="tab-btn" data-tab="page-views">Page Views</button>
+    <button class="tab-btn" data-tab="impressions">Impressions</button>
+    <button class="tab-btn" data-tab="raw-data">Full Raw Data</button>
+  </div>
+
+  <div class="content">
+    <!-- Overview Tab -->
+    <div class="tab-content active" id="tab-overview">
+      <div class="kpi-row" id="overviewKpis"></div>
+      <div class="charts-row">
+        <div class="chart-card"><h3>Alert Distribution Across All Metrics</h3><canvas id="alertChart"></canvas></div>
+        <div class="chart-card"><h3>Top 10 Products by Biggest MoM CVR Drop</h3><canvas id="topDropsChart"></canvas></div>
+      </div>
+      <div class="summary-tab">
+        <div class="overview-grid" id="overviewGrid"></div>
+      </div>
+    </div>
+
+    <!-- MoM Metric Tabs -->
+    <div class="tab-content" id="tab-total-cvr"></div>
+    <div class="tab-content" id="tab-organic-cvr"></div>
+    <div class="tab-content" id="tab-ctr"></div>
+    <div class="tab-content" id="tab-page-views"></div>
+    <div class="tab-content" id="tab-impressions"></div>
+
+    <!-- Raw Data Tab -->
+    <div class="tab-content" id="tab-raw-data">
+      <div class="filters-bar">
+        <input type="text" id="rawSearch" placeholder="Search by product title or ASIN...">
+        <select id="rawBrandFilter"><option value="">All Brands</option></select>
+        <select id="rawStockFilter"><option value="">All Inventory</option></select>
+        <select id="rawSalesStateFilter"><option value="">All Sales States</option></select>
+      </div>
+      <div class="table-wrap"><div class="table-scroll" id="rawTableScroll"><table id="rawTable"></table></div></div>
+      <div class="pagination" id="rawPagination"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const METRIC_TABS = [
+  { id:'total-cvr', sheetNames:['MoM Total CVR','Mom Total CVR','mom total cvr','MoM total CVR'], label:'Total CVR' },
+  { id:'organic-cvr', sheetNames:['MoM Total Organic CVR','Mom Total Organic CVR','mom total organic cvr','MoM total organic cvr','MoM Total Organic CVr'], label:'Organic CVR' },
+  { id:'ctr', sheetNames:['MoM CTR','Mom CTR','mom ctr','MoM Ctr'], label:'CTR' },
+  { id:'page-views', sheetNames:['MoM Page Views','Mom Page Views','mom page views','MoM page views'], label:'Page Views' },
+  { id:'impressions', sheetNames:['MoM Impressions','Mom Impressions','mom impressions','MoM impressions'], label:'Impressions' }
+];
+
+let allData = {};
+let rawData = [];
+let rawPage = 1;
+const RAW_PER_PAGE = 50;
+let rawSortCol = null;
+let rawSortAsc = true;
+let chartInstances = {};
+
+// File upload handling
+const uploadBox = document.getElementById('uploadBox');
+const fileInput = document.getElementById('fileInput');
+
+uploadBox.addEventListener('click', () => fileInput.click());
+uploadBox.addEventListener('dragover', e => { e.preventDefault(); uploadBox.style.borderColor='var(--primary)'; });
+uploadBox.addEventListener('dragleave', () => { uploadBox.style.borderColor='var(--border)'; });
+uploadBox.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadBox.style.borderColor='var(--border)';
+  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if(e.target.files.length) handleFile(e.target.files[0]); });
+
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const wb = XLSX.read(e.target.result, {type:'array'});
+    parseWorkbook(wb);
+    document.getElementById('uploadZone').style.display='none';
+    document.getElementById('dashboard').style.display='block';
+    renderAll();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function findSheet(wb, names) {
+  for(const n of names) {
+    if(wb.SheetNames.includes(n)) return wb.Sheets[n];
+  }
+  // fuzzy match
+  for(const sn of wb.SheetNames) {
+    for(const n of names) {
+      if(sn.toLowerCase().trim() === n.toLowerCase().trim()) return wb.Sheets[sn];
+    }
+  }
+  return null;
+}
+
+function parseWorkbook(wb) {
+  // Parse MoM tabs
+  METRIC_TABS.forEach(tab => {
+    const sheet = findSheet(wb, tab.sheetNames);
+    if(sheet) {
+      const json = XLSX.utils.sheet_to_json(sheet, {defval:''});
+      allData[tab.id] = parseMomSheet(json, tab.id);
+    } else {
+      allData[tab.id] = [];
+    }
+  });
+
+  // Parse raw data - look for a sheet with many columns (the Dec 2025 data sheet)
+  let rawSheet = null;
+  for(const sn of wb.SheetNames) {
+    const s = wb.Sheets[sn];
+    const j = XLSX.utils.sheet_to_json(s, {defval:''});
+    if(j.length > 0 && j[0].hasOwnProperty('ASIN') && (j[0].hasOwnProperty('Profit') || j[0].hasOwnProperty('Total Sales'))) {
+      rawSheet = j;
+      break;
+    }
+  }
+  // Also check if raw data might be pasted - for now use any large sheet
+  if(!rawSheet) {
+    for(const sn of wb.SheetNames) {
+      const j = XLSX.utils.sheet_to_json(wb.Sheets[sn], {defval:''});
+      if(j.length > 50) { rawSheet = j; break; }
+    }
+  }
+  rawData = rawSheet || [];
+}
+
+function parseMomSheet(rows, tabId) {
+  if(!rows.length) return [];
+  // Detect column names dynamically
+  const keys = Object.keys(rows[0]);
+  // Find product title, asin, month columns, mom change, alert
+  let titleKey = keys.find(k => /product.?title/i.test(k)) || keys[0];
+  let asinKey = keys.find(k => /asin/i.test(k)) || keys[1];
+  let alertKey = keys.find(k => /alert/i.test(k)) || keys[keys.length-1];
+  let momKey = keys.find(k => /mom|m.o.m|month.*over|%.*change/i.test(k));
+
+  // Month columns are typically the 3rd and 4th columns
+  let monthKeys = keys.filter(k => k!==titleKey && k!==asinKey && k!==alertKey && k!==momKey);
+  let prevMonthKey = monthKeys[0];
+  let currMonthKey = monthKeys[1];
+  if(!momKey) momKey = monthKeys[2];
+
+  return rows.map(r => ({
+    title: r[titleKey] || '',
+    asin: r[asinKey] || '',
+    prevMonth: parseNum(r[prevMonthKey]),
+    currMonth: parseNum(r[currMonthKey]),
+    momChange: parseNum(r[momKey]),
+    alert: String(r[alertKey] || '').trim(),
+    prevMonthLabel: prevMonthKey,
+    currMonthLabel: currMonthKey
+  })).filter(r => r.title || r.asin);
+}
+
+function parseNum(v) {
+  if(typeof v === 'number') return v;
+  if(!v) return 0;
+  let s = String(v).replace(/[,%$]/g,'').trim();
+  let n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+function renderAll() {
+  renderOverview();
+  METRIC_TABS.forEach(tab => renderMetricTab(tab));
+  renderRawData();
+}
+
+function renderOverview() {
+  // KPIs
+  let totalProducts = 0;
+  let totalAlerts = {drop50:0, drop25:0, drop10:0, increase30:0, newWas0:0};
+  METRIC_TABS.forEach(tab => {
+    const data = allData[tab.id] || [];
+    if(data.length > totalProducts) totalProducts = data.length;
+    data.forEach(r => {
+      const a = r.alert.toLowerCase();
+      if(a.includes('50%+drop') || a.includes('50%+ drop')) totalAlerts.drop50++;
+      else if(a.includes('25%+drop') || a.includes('25%+ drop')) totalAlerts.drop25++;
+      else if(a.includes('10%+drop') || a.includes('10%+ drop')) totalAlerts.drop10++;
+      if(a.includes('30%+increase') || a.includes('30%+ increase')) totalAlerts.increase30++;
+      if(a.includes('new')) totalAlerts.newWas0++;
+    });
+  });
+
+  document.getElementById('overviewKpis').innerHTML = `
+    <div class="kpi-card info"><div class="label">Products Tracked</div><div class="value">${totalProducts}</div><div class="sub">Across all metric tabs</div></div>
+    <div class="kpi-card danger"><div class="label">50%+ Drops</div><div class="value">${totalAlerts.drop50}</div><div class="sub">Critical alerts across all metrics</div></div>
+    <div class="kpi-card warning"><div class="label">25%+ Drops</div><div class="value">${totalAlerts.drop25}</div><div class="sub">Warning alerts</div></div>
+    <div class="kpi-card success"><div class="label">30%+ Increases</div><div class="value">${totalAlerts.increase30}</div><div class="sub">Positive movers</div></div>
+    <div class="kpi-card"><div class="label">Metric Tabs Loaded</div><div class="value">${METRIC_TABS.filter(t => (allData[t.id]||[]).length > 0).length} / 5</div><div class="sub">MoM metric sheets found</div></div>
+  `;
+
+  // Alert distribution chart
+  if(chartInstances.alertChart) chartInstances.alertChart.destroy();
+  const alertCtx = document.getElementById('alertChart').getContext('2d');
+  const alertByMetric = METRIC_TABS.map(tab => {
+    const data = allData[tab.id] || [];
+    let d50=0,d25=0,d10=0,inc=0;
+    data.forEach(r => {
+      const a = r.alert.toLowerCase();
+      if(a.includes('50%+drop') || a.includes('50%+ drop')) d50++;
+      else if(a.includes('25%+drop') || a.includes('25%+ drop')) d25++;
+      else if(a.includes('10%+drop') || a.includes('10%+ drop')) d10++;
+      if(a.includes('30%+increase') || a.includes('30%+ increase')) inc++;
+    });
+    return {label:tab.label, d50, d25, d10, inc};
+  });
+  chartInstances.alertChart = new Chart(alertCtx, {
+    type:'bar',
+    data:{
+      labels:alertByMetric.map(d=>d.label),
+      datasets:[
+        {label:'50%+ Drop',data:alertByMetric.map(d=>d.d50),backgroundColor:'rgba(255,77,106,0.8)'},
+        {label:'25%+ Drop',data:alertByMetric.map(d=>d.d25),backgroundColor:'rgba(255,179,71,0.8)'},
+        {label:'10%+ Drop',data:alertByMetric.map(d=>d.d10),backgroundColor:'rgba(212,160,74,0.6)'},
+        {label:'30%+ Increase',data:alertByMetric.map(d=>d.inc),backgroundColor:'rgba(78,205,196,0.8)'}
+      ]
+    },
+    options:{responsive:true,plugins:{legend:{labels:{color:'#8b90a5'}}},scales:{x:{ticks:{color:'#8b90a5'},grid:{color:'#2e3347'}},y:{ticks:{color:'#8b90a5'},grid:{color:'#2e3347'}}}}
+  });
+
+  // Top drops chart (CVR)
+  if(chartInstances.topDrops) chartInstances.topDrops.destroy();
+  const cvrData = (allData['total-cvr'] || []).filter(r => r.momChange < 0).sort((a,b) => a.momChange - b.momChange).slice(0,10);
+  const dropCtx = document.getElementById('topDropsChart').getContext('2d');
+  chartInstances.topDrops = new Chart(dropCtx, {
+    type:'bar',
+    data:{
+      labels:cvrData.map(d => d.title.length > 30 ? d.title.slice(0,30)+'...' : d.title),
+      datasets:[{label:'MoM % Change',data:cvrData.map(d=>d.momChange),backgroundColor:cvrData.map(d => d.momChange < -50 ? 'rgba(255,77,106,0.8)' : d.momChange < -25 ? 'rgba(255,179,71,0.8)' : 'rgba(212,160,74,0.6)')}]
+    },
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b90a5',callback:v=>v+'%'},grid:{color:'#2e3347'}},y:{ticks:{color:'#8b90a5',font:{size:10}},grid:{color:'#2e3347'}}}}
+  });
+
+  // Overview grid with per-metric summaries
+  let gridHtml = '';
+  METRIC_TABS.forEach(tab => {
+    const data = allData[tab.id] || [];
+    if(!data.length) return;
+    const drops = data.filter(r => r.momChange < 0).length;
+    const gains = data.filter(r => r.momChange > 0).length;
+    const noChange = data.filter(r => r.momChange === 0).length;
+    const avgChange = data.length ? (data.reduce((s,r) => s + r.momChange, 0) / data.length) : 0;
+    gridHtml += `
+      <div class="metric-summary">
+        <h3>${tab.label}</h3>
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:8px">${data.length} products tracked</p>
+        <p><span style="color:var(--danger)">${drops} declining</span> &nbsp;|&nbsp; <span style="color:var(--success)">${gains} improving</span> &nbsp;|&nbsp; <span style="color:var(--text-muted)">${noChange} flat/new</span></p>
+        <p style="margin-top:6px;font-size:15px;font-weight:600;color:${avgChange<0?'var(--danger)':'var(--success)'}">Avg MoM: ${avgChange.toFixed(1)}%</p>
+      </div>`;
+  });
+  document.getElementById('overviewGrid').innerHTML = gridHtml;
+}
+
+function renderMetricTab(tab) {
+  const container = document.getElementById('tab-'+tab.id);
+  const data = allData[tab.id] || [];
+  if(!data.length) {
+    container.innerHTML = '<p style="color:var(--text-muted);padding:40px;text-align:center">No data found for this metric. Check that the sheet name matches.</p>';
+    return;
+  }
+
+  const drops50 = data.filter(r => r.alert.toLowerCase().includes('50%+drop') || r.alert.toLowerCase().includes('50%+ drop')).length;
+  const drops25 = data.filter(r => r.alert.toLowerCase().includes('25%+drop') || r.alert.toLowerCase().includes('25%+ drop')).length;
+  const drops10 = data.filter(r => r.alert.toLowerCase().includes('10%+drop') || r.alert.toLowerCase().includes('10%+ drop')).length;
+  const inc30 = data.filter(r => r.alert.toLowerCase().includes('30%+increase') || r.alert.toLowerCase().includes('30%+ increase')).length;
+  const newItems = data.filter(r => r.alert.toLowerCase().includes('new')).length;
+  const avgChange = data.length ? (data.reduce((s,r)=>s+r.momChange,0)/data.filter(r=>r.momChange!==0).length) : 0;
+
+  container.innerHTML = `
+    <div class="kpi-row">
+      <div class="kpi-card danger"><div class="label">50%+ Drops</div><div class="value">${drops50}</div></div>
+      <div class="kpi-card warning"><div class="label">25%+ Drops</div><div class="value">${drops25}</div></div>
+      <div class="kpi-card"><div class="label">10%+ Drops</div><div class="value" style="color:#d4a04a">${drops10}</div></div>
+      <div class="kpi-card success"><div class="label">30%+ Increases</div><div class="value">${inc30}</div></div>
+      <div class="kpi-card info"><div class="label">New (Was 0)</div><div class="value">${newItems}</div></div>
+    </div>
+    <div class="charts-row">
+      <div class="chart-card"><h3>${tab.label} — Alert Breakdown</h3><canvas id="chart-${tab.id}-alerts"></canvas></div>
+      <div class="chart-card"><h3>${tab.label} — MoM Change Distribution</h3><canvas id="chart-${tab.id}-dist"></canvas></div>
+    </div>
+    <div class="filters-bar">
+      <input type="text" placeholder="Search product or ASIN..." oninput="filterMetricTable('${tab.id}',this.value,this.parentElement.querySelector('select').value)">
+      <select onchange="filterMetricTable('${tab.id}',this.parentElement.querySelector('input').value,this.value)">
+        <option value="">All Alerts</option>
+        <option value="50%+Drop">50%+ Drop</option>
+        <option value="25%+Drop">25%+ Drop</option>
+        <option value="10%+Drop">10%+ Drop</option>
+        <option value="30%+Increase">30%+ Increase</option>
+        <option value="NEW">NEW (was 0)</option>
+      </select>
+    </div>
+    <div class="table-wrap"><div class="table-scroll"><table id="table-${tab.id}"></table></div></div>
+  `;
+
+  // Render alert pie chart
+  if(chartInstances['pie-'+tab.id]) chartInstances['pie-'+tab.id].destroy();
+  const pieCtx = document.getElementById(`chart-${tab.id}-alerts`).getContext('2d');
+  chartInstances['pie-'+tab.id] = new Chart(pieCtx, {
+    type:'doughnut',
+    data:{
+      labels:['50%+ Drop','25%+ Drop','10%+ Drop','30%+ Increase','NEW','No Alert'],
+      datasets:[{data:[drops50,drops25,drops10,inc30,newItems,data.length-drops50-drops25-drops10-inc30-newItems],
+        backgroundColor:['rgba(255,77,106,0.8)','rgba(255,179,71,0.8)','rgba(212,160,74,0.6)','rgba(78,205,196,0.8)','rgba(69,183,209,0.6)','rgba(60,63,80,0.5)']}]
+    },
+    options:{responsive:true,plugins:{legend:{labels:{color:'#8b90a5',font:{size:11}}}}}
+  });
+
+  // Distribution histogram
+  if(chartInstances['dist-'+tab.id]) chartInstances['dist-'+tab.id].destroy();
+  const changes = data.map(r=>r.momChange).filter(v=>v!==0);
+  const buckets = {'< -50%':0,'-50 to -25%':0,'-25 to -10%':0,'-10 to 0%':0,'0 to 10%':0,'10 to 25%':0,'25 to 50%':0,'> 50%':0};
+  changes.forEach(v => {
+    if(v < -50) buckets['< -50%']++;
+    else if(v < -25) buckets['-50 to -25%']++;
+    else if(v < -10) buckets['-25 to -10%']++;
+    else if(v < 0) buckets['-10 to 0%']++;
+    else if(v < 10) buckets['0 to 10%']++;
+    else if(v < 25) buckets['10 to 25%']++;
+    else if(v < 50) buckets['25 to 50%']++;
+    else buckets['> 50%']++;
+  });
+  const distCtx = document.getElementById(`chart-${tab.id}-dist`).getContext('2d');
+  chartInstances['dist-'+tab.id] = new Chart(distCtx, {
+    type:'bar',
+    data:{
+      labels:Object.keys(buckets),
+      datasets:[{label:'Products',data:Object.values(buckets),
+        backgroundColor:['#ff4d6a','#ff6b7d','#ffb347','#d4a04a','#4ecdc4','#45d1a8','#38c9a2','#2fb894']}]
+    },
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b90a5'},grid:{color:'#2e3347'}},y:{ticks:{color:'#8b90a5'},grid:{color:'#2e3347'}}}}
+  });
+
+  renderMetricTable(tab.id, data);
+}
+
+function renderMetricTable(tabId, data, sortCol, sortAsc) {
+  const table = document.getElementById('table-'+tabId);
+  if(!data.length) { table.innerHTML='<tr><td>No data</td></tr>'; return; }
+
+  let sorted = [...data];
+  if(sortCol !== undefined) {
+    sorted.sort((a,b) => {
+      let va = sortCol==='title' ? a.title : sortCol==='asin' ? a.asin : sortCol==='prev' ? a.prevMonth : sortCol==='curr' ? a.currMonth : sortCol==='mom' ? a.momChange : a.alert;
+      let vb = sortCol==='title' ? b.title : sortCol==='asin' ? b.asin : sortCol==='prev' ? b.prevMonth : sortCol==='curr' ? b.currMonth : sortCol==='mom' ? b.momChange : b.alert;
+      if(typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+      return sortAsc ? va - vb : vb - va;
+    });
+  }
+
+  const prevLabel = data[0].prevMonthLabel || 'Previous Month';
+  const currLabel = data[0].currMonthLabel || 'Current Month';
+
+  table.innerHTML = `
+    <thead><tr>
+      <th onclick="sortMetric('${tabId}','title')">Product Title <span class="sort-icon">&#8645;</span></th>
+      <th onclick="sortMetric('${tabId}','asin')">ASIN <span class="sort-icon">&#8645;</span></th>
+      <th onclick="sortMetric('${tabId}','prev')">${prevLabel} <span class="sort-icon">&#8645;</span></th>
+      <th onclick="sortMetric('${tabId}','curr')">${currLabel} <span class="sort-icon">&#8645;</span></th>
+      <th onclick="sortMetric('${tabId}','mom')">MoM % Change <span class="sort-icon">&#8645;</span></th>
+      <th onclick="sortMetric('${tabId}','alert')">Alert <span class="sort-icon">&#8645;</span></th>
+    </tr></thead>
+    <tbody>${sorted.map(r => `<tr>
+      <td title="${escHtml(r.title)}">${r.title.length>50?escHtml(r.title.slice(0,50))+'...':escHtml(r.title)}</td>
+      <td>${escHtml(r.asin)}</td>
+      <td>${formatMetricVal(r.prevMonth, tabId)}</td>
+      <td>${formatMetricVal(r.currMonth, tabId)}</td>
+      <td class="${r.momChange<0?'mom-neg':'mom-pos'}">${r.momChange>0?'+':''}${r.momChange.toFixed(1)}%</td>
+      <td>${alertBadge(r.alert)}</td>
+    </tr>`).join('')}</tbody>`;
+}
+
+const metricSortState = {};
+function sortMetric(tabId, col) {
+  if(!metricSortState[tabId]) metricSortState[tabId] = {col:null,asc:true};
+  const st = metricSortState[tabId];
+  if(st.col === col) st.asc = !st.asc;
+  else { st.col = col; st.asc = true; }
+  renderMetricTable(tabId, allData[tabId] || [], col, st.asc);
+}
+
+function filterMetricTable(tabId, search, alertFilter) {
+  let data = allData[tabId] || [];
+  if(search) {
+    const s = search.toLowerCase();
+    data = data.filter(r => r.title.toLowerCase().includes(s) || r.asin.toLowerCase().includes(s));
+  }
+  if(alertFilter) {
+    data = data.filter(r => r.alert.toLowerCase().includes(alertFilter.toLowerCase()));
+  }
+  renderMetricTable(tabId, data);
+}
+
+function formatMetricVal(v, tabId) {
+  if(tabId === 'page-views' || tabId === 'impressions') return v.toLocaleString();
+  return (v*100).toFixed(2) + '%';
+}
+
+function alertBadge(a) {
+  if(!a) return '<span class="alert-none">—</span>';
+  const al = a.toLowerCase();
+  if(al.includes('50%+drop') || al.includes('50%+ drop')) return `<span class="alert-badge alert-50drop">${escHtml(a)}</span>`;
+  if(al.includes('25%+drop') || al.includes('25%+ drop')) return `<span class="alert-badge alert-25drop">${escHtml(a)}</span>`;
+  if(al.includes('10%+drop') || al.includes('10%+ drop')) return `<span class="alert-badge alert-10drop">${escHtml(a)}</span>`;
+  if(al.includes('30%+increase') || al.includes('30%+ increase')) return `<span class="alert-badge alert-30inc">${escHtml(a)}</span>`;
+  if(al.includes('new')) return `<span class="alert-badge alert-new">${escHtml(a)}</span>`;
+  return `<span class="alert-none">${escHtml(a)}</span>`;
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// Raw Data Tab
+function renderRawData() {
+  if(!rawData.length) {
+    document.getElementById('rawTableScroll').innerHTML = '<p style="padding:40px;text-align:center;color:var(--text-muted)">No raw data sheet found. Upload a workbook that includes the full product data tab.</p>';
+    return;
+  }
+
+  // Populate filters
+  const brands = [...new Set(rawData.map(r => {
+    const t = String(r['Product Title'] || r['ProductTitle'] || '');
+    if(t.startsWith('JoyBerri') || t.startsWith('JOYBERRI')) return 'JoyBerri';
+    if(t.startsWith('Lifepro') || t.startsWith('LifePro')) return 'LifePro';
+    if(t.startsWith('PetCove') || t.startsWith('Petcove')) return 'PetCove';
+    if(t.startsWith('Oaktiv')) return 'Oaktiv';
+    if(t.startsWith('CloudCamp')) return 'CloudCamp';
+    if(t.startsWith('Culvani')) return 'Culvani';
+    if(t.startsWith('Chillux')) return 'Chillux';
+    if(t.startsWith('PurrTek')) return 'PurrTek';
+    return 'Other';
+  }))].sort();
+  const stockStates = [...new Set(rawData.map(r => String(r['Inventory State'] || '')).filter(Boolean))].sort();
+  const salesStates = [...new Set(rawData.map(r => String(r['Sales State'] || '')).filter(Boolean))].sort();
+
+  document.getElementById('rawBrandFilter').innerHTML = '<option value="">All Brands</option>' + brands.map(b=>`<option value="${b}">${b}</option>`).join('');
+  document.getElementById('rawStockFilter').innerHTML = '<option value="">All Inventory</option>' + stockStates.map(s=>`<option value="${s}">${s}</option>`).join('');
+  document.getElementById('rawSalesStateFilter').innerHTML = '<option value="">All Sales States</option>' + salesStates.map(s=>`<option value="${s}">${s}</option>`).join('');
+
+  document.getElementById('rawSearch').oninput = () => { rawPage=1; renderRawTable(); };
+  document.getElementById('rawBrandFilter').onchange = () => { rawPage=1; renderRawTable(); };
+  document.getElementById('rawStockFilter').onchange = () => { rawPage=1; renderRawTable(); };
+  document.getElementById('rawSalesStateFilter').onchange = () => { rawPage=1; renderRawTable(); };
+
+  renderRawTable();
+}
+
+function getFilteredRaw() {
+  let data = [...rawData];
+  const search = (document.getElementById('rawSearch').value || '').toLowerCase();
+  const brand = document.getElementById('rawBrandFilter').value;
+  const stock = document.getElementById('rawStockFilter').value;
+  const salesState = document.getElementById('rawSalesStateFilter').value;
+
+  if(search) {
+    data = data.filter(r => {
+      const t = String(r['Product Title'] || r['ProductTitle'] || '').toLowerCase();
+      const a = String(r['ASIN'] || '').toLowerCase();
+      return t.includes(search) || a.includes(search);
+    });
+  }
+  if(brand) {
+    data = data.filter(r => {
+      const t = String(r['Product Title'] || r['ProductTitle'] || '');
+      return t.toLowerCase().startsWith(brand.toLowerCase());
+    });
+  }
+  if(stock) data = data.filter(r => String(r['Inventory State'] || '') === stock);
+  if(salesState) data = data.filter(r => String(r['Sales State'] || '') === salesState);
+
+  if(rawSortCol !== null) {
+    data.sort((a,b) => {
+      let va = a[rawSortCol], vb = b[rawSortCol];
+      if(typeof va==='number' && typeof vb==='number') return rawSortAsc ? va-vb : vb-va;
+      va = String(va||''); vb = String(vb||'');
+      return rawSortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    });
+  }
+  return data;
+}
+
+function renderRawTable() {
+  const data = getFilteredRaw();
+  const table = document.getElementById('rawTable');
+  if(!data.length) { table.innerHTML='<tr><td style="padding:20px;color:var(--text-muted)">No matching records</td></tr>'; document.getElementById('rawPagination').innerHTML=''; return; }
+
+  const cols = ['Product Title','ASIN','Sales State','Inventory State','Total Sales','Total Units','Ad Sales','Ad Spend','ACOS','ROAS','Impressions','Clicks','CTR','CPC','Page Views','Total Conversion Rate','Organic Sales','Organic Units','Organic Page Views','Organic Conversion Rate','BSR','Profit'];
+  const availCols = cols.filter(c => data[0].hasOwnProperty(c));
+
+  const totalPages = Math.ceil(data.length / RAW_PER_PAGE);
+  const start = (rawPage-1)*RAW_PER_PAGE;
+  const pageData = data.slice(start, start+RAW_PER_PAGE);
+
+  table.innerHTML = `
+    <thead><tr>${availCols.map(c => `<th onclick="sortRaw('${c}')">${c} <span class="sort-icon">&#8645;</span></th>`).join('')}</tr></thead>
+    <tbody>${pageData.map(r => `<tr>${availCols.map(c => `<td>${formatRawCell(c, r[c])}</td>`).join('')}</tr>`).join('')}</tbody>`;
+
+  // Pagination
+  let pagHtml = `<span>Showing ${start+1}-${Math.min(start+RAW_PER_PAGE,data.length)} of ${data.length}</span>`;
+  if(rawPage > 1) pagHtml += `<button onclick="rawPage=1;renderRawTable()">First</button><button onclick="rawPage--;renderRawTable()">Prev</button>`;
+  for(let p=Math.max(1,rawPage-2); p<=Math.min(totalPages,rawPage+2); p++) {
+    pagHtml += `<button class="${p===rawPage?'active':''}" onclick="rawPage=${p};renderRawTable()">${p}</button>`;
+  }
+  if(rawPage < totalPages) pagHtml += `<button onclick="rawPage++;renderRawTable()">Next</button><button onclick="rawPage=${totalPages};renderRawTable()">Last</button>`;
+  document.getElementById('rawPagination').innerHTML = pagHtml;
+}
+
+function sortRaw(col) {
+  if(rawSortCol === col) rawSortAsc = !rawSortAsc;
+  else { rawSortCol = col; rawSortAsc = true; }
+  renderRawTable();
+}
+
+function formatRawCell(col, val) {
+  if(val === undefined || val === null || val === '') return '<span style="color:var(--text-muted)">—</span>';
+  if(col.includes('Sales') && !col.includes('State')) return '$'+Number(val).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  if(col === 'Profit') return (Number(val) < 0 ? '<span class="mom-neg">':'') + '$'+Number(val).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) + (Number(val)<0?'</span>':'');
+  if(col.includes('Units') || col==='Impressions' || col==='Clicks' || col.includes('Page Views') || col==='BSR') return Number(val).toLocaleString();
+  if(col.includes('%') || col.includes('Rate') || col==='CTR' || col==='ACOS') {
+    const n = Number(val);
+    if(typeof val === 'string' && val.includes('%')) return val;
+    return (n*100).toFixed(2)+'%';
+  }
+  if(col === 'ROAS' || col === 'CPC') return Number(val).toFixed(2);
+  if(col === 'Ad Spend') return '$'+Number(val).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  return escHtml(String(val));
+}
+</script>
+</body>
+</html>
