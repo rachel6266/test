@@ -25,6 +25,148 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
+# Theme helpers
+# ---------------------------------------------------------------------------
+
+_DARK_CSS = """
+    /* ── App background ── */
+    .stApp { background-color: #0e1117 !important; color: #fafafa !important; }
+
+    /* ── Sidebar ── */
+    [data-testid="stSidebar"] { background-color: #1a1c25 !important; }
+    [data-testid="stSidebar"] * { color: #fafafa !important; }
+    [data-testid="stSidebarNav"] { background-color: #1a1c25 !important; }
+
+    /* ── Main text ── */
+    h1, h2, h3, h4, h5, h6, p, label, span,
+    .stMarkdown, .stText { color: #fafafa !important; }
+
+    /* ── Metric tiles ── */
+    [data-testid="metric-container"] {
+        background-color: #1e2130 !important;
+        border: 1px solid #3d4054 !important;
+        border-radius: 8px !important;
+        padding: 12px !important;
+    }
+    [data-testid="metric-container"] * { color: #fafafa !important; }
+
+    /* ── Dataframe ── */
+    [data-testid="stDataFrame"] { background-color: #1e2130 !important; }
+    .stDataFrame { background-color: #1e2130 !important; }
+
+    /* ── Input widgets ── */
+    .stSelectbox > div > div,
+    .stMultiselect > div > div,
+    .stTextArea > div > div { background-color: #262730 !important; color: #fafafa !important; border-color: #3d4054 !important; }
+
+    /* ── Buttons ── */
+    .stButton > button {
+        background-color: #262730 !important;
+        color: #fafafa !important;
+        border: 1px solid #3d4054 !important;
+    }
+    .stButton > button:hover { background-color: #3d4054 !important; }
+
+    /* ── Tabs ── */
+    [data-baseweb="tab-list"] { background-color: #1a1c25 !important; }
+    [data-baseweb="tab"] { color: #fafafa !important; }
+    [aria-selected="true"] { border-bottom-color: #4c8bf5 !important; }
+
+    /* ── Expander ── */
+    [data-testid="stExpander"] { background-color: #1e2130 !important; border-color: #3d4054 !important; }
+
+    /* ── Info / warning / success ── */
+    [data-testid="stAlert"] { background-color: #1e2130 !important; }
+
+    /* ── Divider ── */
+    hr { border-color: #3d4054 !important; }
+
+    /* ── Toggle button style ── */
+    #theme-toggle-btn button {
+        width: 100% !important;
+        background: linear-gradient(135deg, #1e2130, #262730) !important;
+        color: #ffd700 !important;
+        border: 1px solid #ffd700 !important;
+        border-radius: 20px !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.5px !important;
+    }
+    #theme-toggle-btn button:hover { background: #ffd700 !important; color: #0e1117 !important; }
+"""
+
+_LIGHT_CSS = """
+    /* ── App background ── */
+    .stApp { background-color: #ffffff !important; color: #31333f !important; }
+
+    /* ── Sidebar ── */
+    [data-testid="stSidebar"] { background-color: #f0f2f6 !important; }
+    [data-testid="stSidebar"] * { color: #31333f !important; }
+    [data-testid="stSidebarNav"] { background-color: #f0f2f6 !important; }
+
+    /* ── Main text ── */
+    h1, h2, h3, h4, h5, h6, p, label, span,
+    .stMarkdown, .stText { color: #31333f !important; }
+
+    /* ── Metric tiles ── */
+    [data-testid="metric-container"] {
+        background-color: #f8f9fa !important;
+        border: 1px solid #e0e2e9 !important;
+        border-radius: 8px !important;
+        padding: 12px !important;
+    }
+    [data-testid="metric-container"] * { color: #31333f !important; }
+
+    /* ── Dataframe ── */
+    [data-testid="stDataFrame"] { background-color: #ffffff !important; }
+    .stDataFrame { background-color: #ffffff !important; }
+
+    /* ── Input widgets ── */
+    .stSelectbox > div > div,
+    .stMultiselect > div > div,
+    .stTextArea > div > div { background-color: #ffffff !important; color: #31333f !important; border-color: #e0e2e9 !important; }
+
+    /* ── Buttons ── */
+    .stButton > button {
+        background-color: #ffffff !important;
+        color: #31333f !important;
+        border: 1px solid #e0e2e9 !important;
+    }
+    .stButton > button:hover { background-color: #e0e2e9 !important; }
+
+    /* ── Tabs ── */
+    [data-baseweb="tab-list"] { background-color: #f0f2f6 !important; }
+    [data-baseweb="tab"] { color: #31333f !important; }
+    [aria-selected="true"] { border-bottom-color: #1a56db !important; }
+
+    /* ── Expander ── */
+    [data-testid="stExpander"] { background-color: #f8f9fa !important; border-color: #e0e2e9 !important; }
+
+    /* ── Info / warning / success ── */
+    [data-testid="stAlert"] { background-color: #f8f9fa !important; }
+
+    /* ── Divider ── */
+    hr { border-color: #e0e2e9 !important; }
+
+    /* ── Toggle button style ── */
+    #theme-toggle-btn button {
+        width: 100% !important;
+        background: linear-gradient(135deg, #e8f0fe, #f0f2f6) !important;
+        color: #1a56db !important;
+        border: 1px solid #1a56db !important;
+        border-radius: 20px !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.5px !important;
+    }
+    #theme-toggle-btn button:hover { background: #1a56db !important; color: #ffffff !important; }
+"""
+
+
+def apply_theme():
+    """Inject CSS for the current theme stored in session_state."""
+    css = _DARK_CSS if st.session_state.get("theme", "dark") == "dark" else _LIGHT_CSS
+    st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
 # Column-mapping helpers
 # ---------------------------------------------------------------------------
 
@@ -142,6 +284,23 @@ def kpi_tile(label: str, value, fmt: str = "{:,.0f}", delta=None):
 # ---------------------------------------------------------------------------
 
 def main():
+    # ── Theme initialisation ──────────────────────────────────────────────────
+    if "theme" not in st.session_state:
+        st.session_state.theme = "dark"
+
+    apply_theme()
+
+    # ── Theme toggle (top of sidebar) ─────────────────────────────────────────
+    is_dark = st.session_state.theme == "dark"
+    toggle_label = "☀️  Light Mode" if is_dark else "🌙  Dark Mode"
+
+    st.sidebar.markdown('<div id="theme-toggle-btn">', unsafe_allow_html=True)
+    if st.sidebar.button(toggle_label, key="theme_toggle", use_container_width=True):
+        st.session_state.theme = "light" if is_dark else "dark"
+        st.rerun()
+    st.sidebar.markdown("</div>", unsafe_allow_html=True)
+    st.sidebar.markdown("---")
+
     st.title("Interactive Performance Dashboard")
 
     # --- Sidebar: file upload -------------------------------------------------
